@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 PROGNAME=${0##*/}
 STARTTIME=$(date +%s)
 
@@ -17,7 +16,7 @@ Function:
 
   Do not assume that line breaks inside a PDF file are going to be where they
   appear when a PDF viewer displays a PDF file. It is therefore important not
-  to use open-ended regexes such as \"*. etc\" for a search patternn.
+  to use open-ended regexes such as \"*. etc\" for a search pattern.
 
 Example:
 	pdfsed ebook.pdf \"09 October\" \"10 October\"
@@ -36,12 +35,15 @@ function die {
   fi
   exit 1
 }
+
 function warn {
   printf "$(tput setaf 3)Warning: $1\n$(tput sgr 0)"
 }
+
 function info {
   printf "$(tput setaf 10)$1...\n$(tput sgr 0)"
 }
+
 function doneit {
   if [[ -n $1 ]]; then
     printf "$(tput setaf 12)$1, done\n$(tput sgr 0)"
@@ -57,17 +59,10 @@ SEARCHPATTERN="${2}"
 REPLACEMENTPATTERN="${3}"
 [[ -z $REPLACEMENTPATTERN ]] && Usage
 
-# Temp work files
 TMPFILE1=$(mktemp "/tmp/tmp.${PROGNAME}.$$.XXXXXX")
-#TMPFILE2=$(mktemp "/tmp/tmp.${PROGNAME}.$$.XXXXXX")
 
-#============================================================================#
-# Set traps and signal BEGIN and END
-# Need logging to work for this
-#============================================================================#
 function cleanup {
   rm "${TMPFILE1}" 2>/dev/null
-  #rm "${TMPFILE2}" 2>/dev/null
   ENDTIME=$(date +%s)
   elapsedseconds=$((ENDTIME-STARTTIME))
   s=$((elapsedseconds % 60))
@@ -77,10 +72,11 @@ function cleanup {
   doneit "${duration}"
   exit
 }
+
 for sig in KILL TERM INT EXIT; do trap 'cleanup $sig' "$sig" ; done
 
 info "Checking environment"
-PDFTK=`which pdftk 2>/dev/null`
+PDFTK=$(which pdftk 2>/dev/null)
 [[ -z "$PDFTK" ]] && die "pdftk does not appear to be installed."
 info "Checking $PDFFILE"
 [[ ! -f $PDFFILE ]] && die "$PDFFILE does not exist"
@@ -92,21 +88,20 @@ else
 fi
 
 info "Uncompressing $PDFFILE"
-pdftk "$PDFFILE" output $TMPFILE1 uncompress  > /dev/null 2>&1
+pdftk "$PDFFILE" output "$TMPFILE1" uncompress > /dev/null 2>&1
 retcode=$?
 [[ $retcode -ne 0 ]] && die "pdftk returned error code $retcode"
 
 info "Replacing '$SEARCHPATTERN' with '$REPLACEMENTPATTERN' in $PDFFILE"
-# Fix patterns with deal with PDF formatting codes
-SEARCHPATTERN=$(echo $SEARCHPATTERN | sed -e 's/ /.*/g')
-# Deal with patterns that contains actual speech marks
-SEARCHPATTERN=$(echo $SEARCHPATTERN | sed -e "s|'|\x27|g" | sed -e 's/"/\x22/g')
-REPLACEMENTPATTERN=$(echo $REPLACEMENTPATTERN | sed -e "s|'|\x27|g" | sed -e 's/"/\x22/g')
-sed -e "s|${SEARCHPATTERN}|${REPLACEMENTPATTERN}|g" -i $TMPFILE1
+
+SEARCHPATTERN=$(echo "$SEARCHPATTERN" | sed -e 's/[\/&]/\\&/g')
+REPLACEMENTPATTERN=$(echo "$REPLACEMENTPATTERN" | sed -e 's/[\/&]/\\&/g')
+
+sed -i '' "s#${SEARCHPATTERN}#${REPLACEMENTPATTERN}#g" "$TMPFILE1"
 
 info "Re-Compressing $PDFFILE"
-pdftk $TMPFILE1 output "$PDFFILE" compress  > /dev/null 2>&1
+pdftk "$TMPFILE1" output "$PDFFILE" compress > /dev/null 2>&1
 retcode=$?
 [[ $retcode -ne 0 ]] && die "pdftk returned error code $retcode"
 
-
+cleanup
